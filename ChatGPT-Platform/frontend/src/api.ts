@@ -105,7 +105,7 @@ export async function getConversations(search?: string): Promise<Conversation[]>
 export async function createConversation(title?: string, model?: string): Promise<Conversation> {
   return request('/conversations', {
     method: 'POST',
-    body: JSON.stringify({ title, model }),
+    body: JSON.stringify({ title: title || 'New Chat', model: model || 'qwen2.5:1.5b' }),
   });
 }
 
@@ -197,7 +197,7 @@ export async function streamChat(
       body: JSON.stringify({
         conversation_id: params.conversationId,
         message: params.message,
-        model: params.model,
+        model: params.model || 'qwen2.5:1.5b',
         temperature: params.temperature ?? 0.7,
         system_prompt: params.systemPrompt,
         use_rag: params.useRag ?? true,

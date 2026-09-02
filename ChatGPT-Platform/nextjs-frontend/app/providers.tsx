@@ -26,8 +26,29 @@ export function Providers({ children }: { children: React.ReactNode }) {
           setUser(res.user);
         }
 
-        const models = await api.getModels();
-        setModels(models);
+        const rawModels = await api.getModels();
+        const filteredModels = rawModels.filter(
+          (m) =>
+            !m.id.toLowerCase().includes('llama') &&
+            !m.id.toLowerCase().includes('groq') &&
+            !m.name.toLowerCase().includes('llama')
+        );
+        const hasQwen = filteredModels.some((m) => m.id === 'qwen2.5:1.5b');
+        const updatedModels = hasQwen
+          ? filteredModels
+          : [
+              {
+                id: 'qwen2.5:1.5b',
+                name: 'Qwen 2.5 1.5B',
+                badge: 'Ollama',
+                provider: 'Ollama',
+                description: 'Local Ollama engine running Qwen 2.5 1.5B.',
+                context_length: 32768,
+                is_default: true,
+              },
+              ...filteredModels,
+            ];
+        setModels(updatedModels);
       } catch {
         logout();
       } finally {

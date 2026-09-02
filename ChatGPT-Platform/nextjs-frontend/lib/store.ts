@@ -81,7 +81,7 @@ export const useStore = create<AppState>()(
       searchTerm: '',
 
       models: [],
-      currentModel: 'llama-3.3-70b-versatile',
+      currentModel: 'qwen2.5:1.5b',
       temperature: 0.7,
       systemPrompt: 'You are a helpful AI assistant. Provide clear, accurate, and well-structured responses.',
       useRag: true,
@@ -97,9 +97,12 @@ export const useStore = create<AppState>()(
       // Auth actions
       setUser: (user) => set((state) => {
         const isDifferentUser = state.user?.id !== user?.id;
+        const preferred = user?.preferred_model;
+        const validPreferred = preferred && !preferred.toLowerCase().includes('llama') && !preferred.toLowerCase().includes('groq') ? preferred : 'qwen2.5:1.5b';
         return {
           user,
           isAuthenticated: !!user && !user.is_guest,
+          currentModel: validPreferred,
           conversations: isDifferentUser ? [] : state.conversations,
           activeConvId: isDifferentUser ? null : state.activeConvId,
           messages: isDifferentUser ? [] : state.messages,

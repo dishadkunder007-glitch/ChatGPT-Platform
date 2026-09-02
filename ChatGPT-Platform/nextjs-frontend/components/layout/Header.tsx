@@ -38,8 +38,8 @@ export function Header({ onSettingsOpen, onAuthOpen, onProfileOpen }: HeaderProp
             onClick={() => setModelDropdown(!modelDropdown)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[#2d2d2d] text-white text-sm font-medium transition-colors"
           >
-            <span className="hidden sm:inline">{currentModelData?.name?.split(' ').slice(0, 3).join(' ') || 'ChatGPT Platform'}</span>
-            <span className="sm:hidden">AI Model</span>
+            <span className="hidden sm:inline">{currentModelData?.name?.split(' ').slice(0, 3).join(' ') || 'Qwen 2.5 1.5B'}</span>
+            <span className="sm:hidden">Qwen 2.5</span>
             <ChevronDown size={14} className={cn('transition-transform', modelDropdown && 'rotate-180')} />
           </button>
 

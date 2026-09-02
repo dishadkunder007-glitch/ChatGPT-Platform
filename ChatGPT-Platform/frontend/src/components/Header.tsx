@@ -27,10 +27,10 @@ export const Header: React.FC<HeaderProps> = ({
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
   const activeModelObj = models.find((m) => m.id === currentModel) || {
-    id: currentModel,
-    name: 'Llama 3.3 70B Versatile',
-    badge: '🚀 Groq Cloud',
-    provider: 'Groq Cloud',
+    id: currentModel || 'qwen2.5:1.5b',
+    name: 'Qwen 2.5 1.5B',
+    badge: 'Ollama',
+    provider: 'Ollama',
   };
 
   return (
@@ -76,8 +76,8 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="fixed inset-0 z-40" onClick={() => setModelDropdownOpen(false)} />
             <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-84 sm:w-96 bg-[#0f172a] border border-white/[0.12] rounded-2xl shadow-2xl z-50 p-2 animate-in fade-in zoom-in-95 backdrop-blur-2xl">
               <div className="px-3 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-white/[0.08] mb-1 flex items-center justify-between">
-                <span>Select Hosted LLM Engine</span>
-                <span className="text-emerald-400 font-mono text-[10px]">Cloud Hosted</span>
+                <span>Select LLM Engine</span>
+                <span className="text-emerald-400 font-mono text-[10px]">Ollama Local</span>
               </div>
               <div className="space-y-1.5 max-h-80 overflow-y-auto">
                 {models.map((model) => {

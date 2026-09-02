@@ -28,7 +28,7 @@ export const App: React.FC = () => {
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [models, setModels] = useState<ModelOption[]>([]);
-  const [currentModel, setCurrentModel] = useState<string>('llama-3.3-70b-versatile');
+  const [currentModel, setCurrentModel] = useState<string>('qwen2.5:1.5b');
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -56,12 +56,39 @@ export const App: React.FC = () => {
           currentUser = res.user;
         }
         setUser(currentUser);
-        if (currentUser.preferred_model) setCurrentModel(currentUser.preferred_model);
+        if (
+          currentUser.preferred_model &&
+          !currentUser.preferred_model.toLowerCase().includes('llama') &&
+          !currentUser.preferred_model.toLowerCase().includes('groq')
+        ) {
+          setCurrentModel(currentUser.preferred_model);
+        } else {
+          setCurrentModel('qwen2.5:1.5b');
+        }
         if (currentUser.system_prompt) setSystemPrompt(currentUser.system_prompt);
 
         // Fetch models
         const modelList = await getModels();
-        setModels(modelList);
+        const filteredModels = modelList.filter(
+          (m) =>
+            !m.id.toLowerCase().includes('llama') &&
+            !m.id.toLowerCase().includes('groq') &&
+            !m.name.toLowerCase().includes('llama')
+        );
+        const hasQwen = filteredModels.some((m) => m.id === 'qwen2.5:1.5b');
+        const updatedModels: ModelOption[] = hasQwen
+          ? filteredModels
+          : [
+              {
+                id: 'qwen2.5:1.5b',
+                name: 'Qwen 2.5 1.5B',
+                badge: 'Ollama',
+                provider: 'Ollama',
+                description: 'Local Ollama engine running Qwen 2.5 1.5B model.',
+              },
+              ...filteredModels,
+            ];
+        setModels(updatedModels);
 
         // Fetch conversations
         const convList = await getConversations();
@@ -108,7 +135,7 @@ export const App: React.FC = () => {
   // Create New Chat
   const handleNewChat = async () => {
     try {
-      const newConv = await createConversation('New Chat', currentModel);
+      const newConv = await createConversation('New Chat', currentModel || 'qwen2.5:1.5b');
       setConversations((prev) => [newConv, ...prev]);
       setActiveConvId(newConv.id);
       setMessages([]);
@@ -174,7 +201,7 @@ export const App: React.FC = () => {
         conversation_id: activeConvId || '',
         role: 'assistant',
         content: '',
-        model: currentModel,
+        model: currentModel || 'qwen2.5:1.5b',
         isStreaming: true,
         created_at: new Date().toISOString(),
       },
@@ -187,7 +214,7 @@ export const App: React.FC = () => {
       {
         conversationId: activeConvId || undefined,
         message: textToSend,
-        model: currentModel,
+        model: currentModel || 'qwen2.5:1.5b',
         temperature,
         systemPrompt,
         useRag,

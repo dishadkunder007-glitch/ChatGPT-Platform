@@ -19,11 +19,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     user, setUser,
   } = useStore();
 
-  const [apiKey, setApiKey] = useState(user?.custom_api_key || '');
   const [localPrompt, setLocalPrompt] = useState(systemPrompt);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<'model' | 'advanced' | 'api'>('model');
+  const [activeTab, setActiveTab] = useState<'model' | 'advanced'>('model');
 
   async function handleSave() {
     setSaving(true);
@@ -33,7 +32,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         await api.updateProfile({
           preferred_model: currentModel,
           system_prompt: localPrompt,
-          custom_api_key: apiKey || undefined,
         });
       }
       setSaved(true);
@@ -55,7 +53,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
         {/* Tabs */}
         <div className="flex border-b border-[#2d2d2d] px-4">
-          {(['model', 'advanced', 'api'] as const).map((tab) => (
+          {(['model', 'advanced'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -66,7 +64,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                   : 'border-transparent text-gray-500 hover:text-white'
               )}
             >
-              {tab === 'api' ? 'API Key' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
@@ -163,39 +161,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     useRag && 'translate-x-5'
                   )} />
                 </button>
-              </div>
-            </>
-          )}
-
-          {activeTab === 'api' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Groq API Key (Optional)</label>
-                <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full bg-[#212121] border border-[#333] rounded-xl pl-9 pr-4 py-3 text-sm text-white placeholder-gray-500 outline-none focus:border-emerald-500/50 transition-colors font-mono"
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Get a free API key at{' '}
-                  <a href="https://console.groq.com" target="_blank" rel="noopener" className="text-blue-400 hover:underline">
-                    console.groq.com
-                  </a>
-                  {' '}· 100k free tokens/day · No credit card required
-                </p>
-              </div>
-
-              <div className="bg-[#212121] rounded-xl border border-[#2d2d2d] p-4">
-                <p className="text-xs font-medium text-gray-400 mb-2">🔒 Privacy Note</p>
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  Your API key is stored encrypted in your account and only used to call Groq on your behalf.
-                  Without a key, the system uses a shared key with rate limits.
-                </p>
               </div>
             </>
           )}

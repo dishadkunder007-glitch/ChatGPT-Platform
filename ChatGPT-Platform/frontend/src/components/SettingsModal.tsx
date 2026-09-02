@@ -79,32 +79,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Body */}
         <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
-          {/* Groq Cloud API Key */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-white flex items-center space-x-1.5">
-                <Key className="w-3.5 h-3.5 text-amber-400" />
-                <span>Custom Groq API Key (Optional)</span>
-              </label>
-              <a
-                href="https://console.groq.com"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-[#10a37f] hover:underline"
-              >
-                Get Free Key ↗
-              </a>
+          {/* Local Ollama Status */}
+          <div className="p-3.5 rounded-xl bg-[#141820] border border-[#283244] flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-lg bg-[#10a37f]/20 flex items-center justify-center text-[#10a37f] shrink-0">
+              <Cpu className="w-4 h-4" />
             </div>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="gsk_..."
-              className="w-full px-3.5 py-2 rounded-xl bg-[#141820] border border-[#283244] text-xs text-white placeholder-[#6e7681] focus:outline-none focus:border-[#10a37f]"
-            />
-            <p className="text-[11px] text-[#6e7681]">
-              Leave empty to use the built-in hosted cloud inference service with zero setup.
-            </p>
+            <div>
+              <div className="text-xs font-semibold text-white">Local Ollama Engine Active</div>
+              <div className="text-[11px] text-[#8e8ea0]">Running locally via Ollama with Qwen 2.5 1.5B. No API key required.</div>
+            </div>
           </div>
 
           {/* Default Model */}
