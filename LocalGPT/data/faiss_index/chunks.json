@@ -1,0 +1,42 @@
+[
+  {
+    "chunk_id": "ba709d772af2cbaf_chk_0000",
+    "doc_id": "ba709d772af2cbaf",
+    "text": "Transformers rely on self-attention mechanisms to calculate relationships between all words in a sequence simultaneously. The key components are Query, Key, and Value vectors.",
+    "chunk_index": 0,
+    "metadata": {
+      "filename": "test_doc.txt",
+      "file_type": "txt",
+      "doc_id": "ba709d772af2cbaf",
+      "chunk_index": 0,
+      "total_chunks": 1,
+      "page_number": 1,
+      "page_range": "1",
+      "total_pages": 1,
+      "char_start": 0,
+      "char_end": 175,
+      "char_length": 175,
+      "word_count": 24
+    }
+  },
+  {
+    "chunk_id": "ba709d772af2cbaf_chk_0000",
+    "doc_id": "ba709d772af2cbaf",
+    "text": "Transformers rely on self-attention mechanisms to calculate relationships between all words in a sequence simultaneously. The key components are Query, Key, and Value vectors.",
+    "chunk_index": 0,
+    "metadata": {
+      "filename": "test_doc.txt",
+      "file_type": "txt",
+      "doc_id": "ba709d772af2cbaf",
+      "chunk_index": 0,
+      "total_chunks": 1,
+      "page_number": 1,
+      "page_range": "1",
+      "total_pages": 1,
+      "char_start": 0,
+      "char_end": 175,
+      "char_length": 175,
+      "word_count": 24
+    }
+  }
+]

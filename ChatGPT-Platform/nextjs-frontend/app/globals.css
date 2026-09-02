@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0f0f0f;
+  --color-surface: #1a1a1a;
+  --color-surface-2: #212121;
+  --color-surface-3: #2d2d2d;
+  --color-border: #333333;
+  --color-accent: #10b981;
+  --color-accent-hover: #059669;
+  --color-blue: #3b82f6;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
+
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #0f0f0f;
+  color: #ffffff;
+  font-family: var(--font-sans);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #444; }
+
+/* Streaming cursor */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.streaming-cursor::after {
+  content: '▋';
+  display: inline-block;
+  animation: blink 1s step-end infinite;
+  color: #10b981;
+  margin-left: 2px;
+}
+
+/* Code block styles */
+pre {
+  margin: 0 !important;
+}
+
+/* Message fade in */
+@keyframes messageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.message-fade-in {
+  animation: messageIn 0.2s ease-out;
+}
+
+/* Sidebar slide */
+@keyframes sidebarIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+/* Input focus glow */
+.input-glow:focus-within {
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.5), 0 0 20px rgba(16, 185, 129, 0.1);
+}
+
+/* Prose overrides for markdown */
+.prose-custom p { margin: 0.5em 0; }
+.prose-custom ul, .prose-custom ol { padding-left: 1.5em; margin: 0.5em 0; }
+.prose-custom li { margin: 0.25em 0; }
+.prose-custom h1, .prose-custom h2, .prose-custom h3 { 
+  font-weight: 600; 
+  margin: 1em 0 0.5em; 
+  color: #fff; 
+}
+.prose-custom code {
+  background: #2d2d2d;
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  font-size: 0.875em;
+  color: #10b981;
+}
+.prose-custom pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+.prose-custom blockquote {
+  border-left: 3px solid #333;
+  padding-left: 1em;
+  color: #a1a1aa;
+  margin: 0.5em 0;
+}
+.prose-custom table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+}
+.prose-custom th, .prose-custom td {
+  border: 1px solid #333;
+  padding: 0.4em 0.8em;
+  text-align: left;
+}
+.prose-custom th { background: #2d2d2d; color: #fff; font-weight: 600; }
+.prose-custom tr:nth-child(even) td { background: #1a1a1a; }
+.prose-custom a { color: #3b82f6; text-decoration: underline; }
+.prose-custom strong { color: #fff; font-weight: 600; }

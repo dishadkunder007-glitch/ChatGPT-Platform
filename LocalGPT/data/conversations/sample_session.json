@@ -1,0 +1,15 @@
+{
+  "session_id": "welcome_session_001",
+  "title": "Getting Started with LocalGPT",
+  "created_at": "2026-08-26T20:00:00Z",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is LocalGPT and how does it work?"
+    },
+    {
+      "role": "assistant",
+      "content": "LocalGPT is your privacy-preserving local AI assistant. It runs open-weights language models entirely on your machine, supports document question-answering with RAG, and includes an X-Ray view to visualize internal neural attention and logit distributions."
+    }
+  ]
+}

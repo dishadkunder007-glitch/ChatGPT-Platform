@@ -1,0 +1,1 @@
+Transformers rely on self-attention mechanisms to calculate relationships between all words in a sequence simultaneously. The key components are Query, Key, and Value vectors.
