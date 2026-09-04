@@ -9,7 +9,7 @@ export function getApiUrl(endpoint: string): string {
 
   const baseUrl =
     typeof window !== 'undefined'
-      ? 'https://firms-fan-indie-fields.trycloudflare.com'
+      ? 'https://markers-phpbb-codes-protest.trycloudflare.com'
       : (process.env.NEXT_PUBLIC_API_URL ||
         'http://127.0.0.1:8001');
 
