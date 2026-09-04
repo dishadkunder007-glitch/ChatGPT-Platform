@@ -4,21 +4,17 @@ export function getApiUrl(endpoint: string): string {
   if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
     return endpoint;
   }
+
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 
-  if (typeof window !== 'undefined') {
-    // In client browser, use relative '/api' which routes through Next.js proxy rewrites
-    // This avoids CORS, IPv4/IPv6 localhost mismatch, and port issues
-    const envUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
-      return `${envUrl.replace(/\/$/, '')}/api${cleanEndpoint}`;
-    }
-    return `/api${cleanEndpoint}`;
-  }
+  // Public backend for the deployed Vercel website
+  const baseUrl =
+    typeof window !== 'undefined'
+      ? 'https://hypothesis-thorough-impacts-posing.trycloudflare.com'
+      : (process.env.NEXT_PUBLIC_API_URL ||
+        'http://127.0.0.1:8001');
 
-  // Server-side (Node.js runtime)
-  const base = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-  return `${base.replace(/\/$/, '')}/api${cleanEndpoint}`;
+  return `${baseUrl.replace(/\/$/, '')}/api${cleanEndpoint}`;
 }
 
 let inMemoryToken: string | null = null;
