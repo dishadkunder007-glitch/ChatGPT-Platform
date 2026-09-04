@@ -23,11 +23,6 @@ from auth import (
     get_current_user, require_authenticated_user, verify_google_token,
     generate_reset_token
 )
-from groq_client import stream_groq_or_fallback
-from document_processor import extract_text_from_file
-from rag import get_user_vector_store, build_rag_context
-from email_service import send_password_reset_email
-
 # Initialize DB schema
 init_db()
 
@@ -41,6 +36,7 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "https://chat-gpt-platform.vercel.app",
 ]
 
 env_origins = os.getenv("ALLOWED_ORIGINS")
