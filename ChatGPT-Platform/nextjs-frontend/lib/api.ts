@@ -7,16 +7,14 @@ export function getApiUrl(endpoint: string): string {
 
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 
-  // Public backend for the deployed Vercel website
   const baseUrl =
     typeof window !== 'undefined'
-      ? 'https://hypothesis-thorough-impacts-posing.trycloudflare.com'
+      ? 'https://firms-fan-indie-fields.trycloudflare.com'
       : (process.env.NEXT_PUBLIC_API_URL ||
         'http://127.0.0.1:8001');
 
   return `${baseUrl.replace(/\/$/, '')}/api${cleanEndpoint}`;
 }
-
 let inMemoryToken: string | null = null;
 
 export function getAuthToken(): string | null {
