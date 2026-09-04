@@ -39,16 +39,6 @@ MODEL_MAP: Dict[str, str] = {
     "qwen2.5:1.5b":                          "qwen2.5:1.5b",
     "qwen2.5":                               "qwen2.5:1.5b",
     "qwen":                                  "qwen2.5:1.5b",
-    "TinyLlama/TinyLlama-1.1B-Chat-v1.0":    "tinyllama",
-    "tinyllama":                             "tinyllama",
-    "gpt2":                                  "qwen2.5:1.5b",
-    "distilgpt2":                            "qwen2.5:1.5b",
-    "phi3:mini":                             "phi3:mini",
-    "phi3":                                  "phi3:mini",
-    "llama-3.3-70b-versatile":               "qwen2.5:1.5b",
-    "llama-3.1-8b-instant":                  "qwen2.5:1.5b",
-    "openai/gpt-oss-120b":                   "qwen2.5:1.5b",
-    "openai/gpt-oss-20b":                    "qwen2.5:1.5b",
 }
 
 
@@ -107,43 +97,6 @@ def _build_messages(
             result.append({"role": m["role"], "content": m["content"]})
     return result
 
-
-async def _ensure_ollama_running() -> bool:
-    """Checks if Ollama is running, and tries to start it in background if installed."""
-    async with httpx.AsyncClient(timeout=2.0) as client:
-        try:
-            resp = await client.get(f"{OLLAMA_BASE_URL}/")
-            if resp.status_code == 200 or "Ollama is running" in resp.text:
-                return True
-        except Exception:
-            pass
-
-    # Try to launch ollama serve
-    exe = _find_ollama_executable()
-    if exe:
-        try:
-            subprocess.Popen(
-                [exe, "serve"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            )
-            # Wait briefly for socket to open
-            for _ in range(6):
-                await asyncio.sleep(0.5)
-                async with httpx.AsyncClient(timeout=1.0) as client:
-                    try:
-                        resp = await client.get(f"{OLLAMA_BASE_URL}/")
-                        if resp.status_code == 200 or "Ollama is running" in resp.text:
-                            return True
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-
-    return False
-
-
 async def _stream_dynamic_fallback(
     messages: List[Dict[str, str]],
     rag_context: Optional[str] = None
@@ -174,7 +127,7 @@ async def _stream_dynamic_fallback(
         await asyncio.sleep(0.015)
 
 
-async def stream_groq_or_fallback(
+async def stream_ollama_or_fallback(
     messages: List[Dict[str, str]],
     model_name: str = "qwen2.5:1.5b",
     custom_api_key: Optional[str] = None,
@@ -189,13 +142,9 @@ async def stream_groq_or_fallback(
     ollama_model = _resolve_model(model_name)
     chat_messages = _build_messages(messages, system_prompt, rag_context)
 
-    # 1. Ensure Ollama server is up
-    ollama_alive = await _ensure_ollama_running()
-    if not ollama_alive:
-        # Fallback to local semantic engine instantly without showing errors
-        async for chunk in _stream_dynamic_fallback(messages, rag_context):
-            yield chunk
-        return
+    # Ollama is already running locally.
+    # Do not fall back to Groq, Anthropic, Claude, or another model.
+    ollama_alive = True
 
     # 2. Stream directly from Ollama
     try:
@@ -216,8 +165,9 @@ async def stream_groq_or_fallback(
             ) as resp:
                 if resp.status_code != 200:
                     # Model might not be loaded or error returned -> fallback
-                    async for chunk in _stream_dynamic_fallback(messages, rag_context):
-                        yield chunk
+                    yield json.dumps({
+                       "token": "Qwen model error. Check Ollama is running."
+                    })
                     return
 
                 streamed_any = False
