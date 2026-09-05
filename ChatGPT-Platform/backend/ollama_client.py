@@ -142,9 +142,6 @@ async def stream_ollama_or_fallback(
     ollama_model = _resolve_model(model_name)
     chat_messages = _build_messages(messages, system_prompt, rag_context)
 
-    # Ollama is already running locally.
-    # Do not fall back to Groq, Anthropic, Claude, or another model.
-    ollama_alive = True
 
     # 2. Stream directly from Ollama
     try:

@@ -23,6 +23,10 @@ from auth import (
     get_current_user, require_authenticated_user, verify_google_token,
     generate_reset_token
 )
+from rag import build_rag_context, get_user_vector_store
+from ollama_client import stream_ollama_or_fallback
+from document_processor import extract_text_from_file
+from email_service import send_password_reset_email
 # Initialize DB schema
 init_db()
 
@@ -605,7 +609,7 @@ async def chat_stream(
 
         full_response_parts = []
 
-        async for chunk_json in stream_groq_or_fallback(
+        async for chunk_json in stream_ollama_or_fallback(
             messages=formatted_history,
             model_name=req.model or conv.model or "llama-3.3-70b-versatile",
             custom_api_key=user.custom_api_key,
@@ -688,7 +692,7 @@ async def regenerate_response(
 
         full_response_parts = []
 
-        async for chunk_json in stream_groq_or_fallback(
+        async for chunk_json in stream_ollama_or_fallback(
             messages=formatted_history,
             model_name=req.model or conv.model or "llama-3.3-70b-versatile",
             custom_api_key=user.custom_api_key,
@@ -772,7 +776,7 @@ async def edit_and_resubmit(
 
         full_response_parts = []
 
-        async for chunk_json in stream_groq_or_fallback(
+        async for chunk_json in stream_ollama_or_fallback(
             messages=formatted_history,
             model_name=req.model or conv.model or "llama-3.3-70b-versatile",
             custom_api_key=user.custom_api_key,
