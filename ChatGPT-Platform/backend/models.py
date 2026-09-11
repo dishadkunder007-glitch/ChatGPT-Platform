@@ -55,7 +55,7 @@ class PasswordChangeRequest(BaseModel):
 
 class ConversationCreate(BaseModel):
     title: Optional[str] = "New Chat"
-    model: Optional[str] = "llama-3.3-70b-versatile"
+    model: Optional[str] = "qwen2.5:1.5b"
 
 
 class ConversationRename(BaseModel):
@@ -88,7 +88,7 @@ class MessageOut(BaseModel):
 class ChatStreamRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
-    model: Optional[str] = "llama-3.3-70b-versatile"
+    model: Optional[str] = "qwen2.5:1.5b"
     use_rag: Optional[bool] = True
     temperature: Optional[float] = 0.7
     system_prompt: Optional[str] = None

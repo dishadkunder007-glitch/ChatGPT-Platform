@@ -4,7 +4,11 @@ from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, F
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./chatgpt_platform.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL or DATABASE_URL == "sqlite:///./chatgpt_platform.db":
+    _backend_dir = os.path.dirname(os.path.abspath(__file__))
+    _db_path = os.path.join(_backend_dir, "chatgpt_platform.db").replace("\\", "/")
+    DATABASE_URL = f"sqlite:///{_db_path}"
 
 # Handle postgres URL dialect (Render uses postgres://)
 if DATABASE_URL.startswith("postgres://"):
@@ -32,7 +36,7 @@ class User(Base):
     is_guest = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     custom_api_key = Column(String, nullable=True)
-    preferred_model = Column(String, default="llama-3.3-70b-versatile")
+    preferred_model = Column(String, default="qwen2.5:1.5b")
     system_prompt = Column(Text, default="You are a helpful AI assistant. Provide clear, accurate, and well-structured responses.")
 
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
@@ -46,7 +50,7 @@ class Conversation(Base):
     id = Column(String, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     title = Column(String, default="New Chat")
-    model = Column(String, default="llama-3.3-70b-versatile")
+    model = Column(String, default="qwen2.5:1.5b")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
@@ -81,6 +85,21 @@ class Document(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     user = relationship("User", back_populates="documents")
+    chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
+
+
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    document_id = Column(String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    filename = Column(String, nullable=False)
+    chunk_index = Column(Integer, default=0)
+    page_number = Column(Integer, default=1)
+    content = Column(Text, nullable=False)
+
+    document = relationship("Document", back_populates="chunks")
 
 
 class PasswordResetToken(Base):

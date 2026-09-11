@@ -58,6 +58,7 @@ interface AppState {
   setDocuments: (docs: DocumentItem[]) => void;
   addDocument: (doc: DocumentItem) => void;
   removeDocument: (id: string) => void;
+  clearDocuments: () => void;
 
   setSearchTerm: (term: string) => void;
   setSidebarOpen: (open: boolean) => void;
@@ -161,6 +162,7 @@ export const useStore = create<AppState>()(
       removeDocument: (id) => set((state) => ({
         documents: state.documents.filter((d) => d.id !== id)
       })),
+      clearDocuments: () => set({ documents: [] }),
 
       // UI actions
       setSearchTerm: (searchTerm) => set({ searchTerm }),

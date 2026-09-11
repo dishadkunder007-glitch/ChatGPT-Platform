@@ -5,7 +5,7 @@ import { useStore } from '@/lib/store';
 import * as api from '@/lib/api';
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const { token, setUser, setToken, logout, setModels } = useStore();
+  const { token, setUser, setToken, logout, setModels, setDocuments } = useStore();
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -49,6 +49,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
               ...filteredModels,
             ];
         setModels(updatedModels);
+        const docs = await api.getDocuments().catch(() => []);
+        setDocuments(docs);
       } catch {
         logout();
       } finally {

@@ -9,8 +9,10 @@ interface HeaderProps {
   user: UserType | null;
   onNewChat: () => void;
   onOpenSettings: () => void;
+  onOpenPrivacy: () => void;
   onOpenAuth: () => void;
   onLogout: () => void;
+  isIncognito?: boolean;
   onToggleSidebar?: () => void;
 }
 
@@ -21,8 +23,10 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   onNewChat,
   onOpenSettings,
+  onOpenPrivacy,
   onOpenAuth,
   onLogout,
+  isIncognito = false,
 }) => {
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
@@ -123,6 +127,20 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <Plus className="w-4 h-4" />
           <span>New Chat</span>
+        </button>
+
+        {/* Privacy & Data Security button */}
+        <button
+          onClick={onOpenPrivacy}
+          title="Chat Privacy & Security"
+          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+            isIncognito
+              ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-md shadow-amber-500/10'
+              : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/25 text-emerald-400'
+          }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+          <span className="hidden sm:inline">{isIncognito ? 'Incognito' : 'Privacy'}</span>
         </button>
 
         {/* Settings button */}

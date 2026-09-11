@@ -95,6 +95,21 @@ def _build_messages(
     for m in messages:
         if m.get("role") in ("user", "assistant") and m.get("content", "").strip():
             result.append({"role": m["role"], "content": m["content"]})
+
+    # For local LLMs like Qwen 2.5 1.5B, also augment the latest user query with the RAG context
+    if rag_context and result:
+        for i in range(len(result) - 1, -1, -1):
+            if result[i]["role"] == "user":
+                orig = result[i]["content"]
+                result[i]["content"] = (
+                    f"Context information from uploaded documents is below:\n"
+                    f"---------------------\n"
+                    f"{rag_context}\n"
+                    f"---------------------\n"
+                    f"Given the context above, answer the question: {orig}"
+                )
+                break
+
     return result
 
 async def _stream_dynamic_fallback(

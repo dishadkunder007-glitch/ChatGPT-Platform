@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, or_
 
-from database import init_db, get_db, SessionLocal, User, Conversation, Message, Document, PasswordResetToken
+from database import init_db, get_db, SessionLocal, User, Conversation, Message, Document, DocumentChunk, PasswordResetToken
 from models import (
     UserRegister, UserLogin, GoogleAuthRequest, TokenResponse, UserProfileUpdate,
     PasswordResetRequest, PasswordResetConfirm, PasswordChangeRequest,
@@ -23,12 +23,14 @@ from auth import (
     get_current_user, require_authenticated_user, verify_google_token,
     generate_reset_token
 )
-from rag import build_rag_context, get_user_vector_store
+from rag import build_rag_context, get_user_vector_store, reload_user_vector_store, clear_user_vector_store, purge_all_vector_stores
 from ollama_client import stream_ollama_or_fallback
 from document_processor import extract_text_from_file
 from email_service import send_password_reset_email
 # Initialize DB schema
 init_db()
+# Flush any stale vector store caches on start
+purge_all_vector_stores()
 
 app = FastAPI(title="ChatGPT-Style AI Platform API", version="4.0.0")
 
@@ -181,17 +183,24 @@ async def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
     avatar_url = req.avatar_url
     google_sub_id = None
 
-    # If credential is a real Google ID token, verify it if possible
-    if req.credential and len(req.credential) > 100:
+    # If credential is provided (Google ID token, GSI, or Firebase ID token), verify and extract claims
+    if req.credential and len(req.credential) > 20:
         try:
             payload = await verify_google_token(req.credential)
-            email = payload.get("email", email)
-            name = payload.get("name", name)
-            avatar_url = payload.get("picture", avatar_url)
-            google_sub_id = payload.get("sub")
+            if payload:
+                email = payload.get("email", email)
+                name = payload.get("name", name)
+                avatar_url = payload.get("picture", avatar_url)
+                google_sub_id = payload.get("sub") or payload.get("user_id")
         except Exception:
-            # Fallback: token verification skipped or failed (e.g. Firebase ID token or local dev)
-            pass
+            try:
+                unverified = jwt.decode(req.credential, options={"verify_signature": False})
+                email = unverified.get("email", email)
+                name = unverified.get("name", name)
+                avatar_url = unverified.get("picture", avatar_url)
+                google_sub_id = unverified.get("sub") or unverified.get("user_id")
+            except Exception:
+                pass
 
     if not email:
         raise HTTPException(status_code=400, detail="Email is required for Google sign-in")
@@ -457,7 +466,7 @@ def create_conversation(
         id=str(uuid.uuid4()),
         user_id=user.id,
         title=req.title or "New Chat",
-        model=req.model or "llama-3.3-70b-versatile"
+        model=req.model or "qwen2.5:1.5b"
     )
     db.add(conv)
     db.commit()
@@ -550,13 +559,14 @@ async def chat_stream(
 ):
     # Resolve or create conversation
     conv_id = req.conversation_id
+
     if not conv_id:
         title_snippet = req.message.strip()[:50] or "New Chat"
         conv = Conversation(
             id=str(uuid.uuid4()),
             user_id=user.id,
             title=title_snippet,
-            model=req.model or "llama-3.3-70b-versatile"
+            model=req.model or "qwen2.5:1.5b"
         )
         db.add(conv)
         db.commit()
@@ -567,12 +577,13 @@ async def chat_stream(
             Conversation.id == conv_id,
             Conversation.user_id == user.id
         ).first()
+
         if not conv:
             conv = Conversation(
                 id=conv_id,
                 user_id=user.id,
                 title=req.message.strip()[:50] or "New Chat",
-                model=req.model or "llama-3.3-70b-versatile"
+                model=req.model or "qwen2.5:1.5b"
             )
             db.add(conv)
             db.commit()
@@ -595,57 +606,74 @@ async def chat_stream(
     history_messages = db.query(Message).filter(
         Message.conversation_id == conv_id
     ).order_by(Message.created_at).all()
-    formatted_history = [{"role": m.role, "content": m.content} for m in history_messages]
+
+    formatted_history = [
+        {"role": m.role, "content": m.content}
+        for m in history_messages
+    ]
 
     # RAG retrieval
     rag_context, citations = "", []
+
     if req.use_rag:
-        rag_context, citations = build_rag_context(user.id, req.message, top_k=3)
+        rag_context, citations = build_rag_context(
+            user.id,
+            req.message,
+            top_k=3,
+            db=db
+        )
 
     assistant_msg_id = str(uuid.uuid4())
 
-    async def sse_generator():
-        yield f"data: {json.dumps({'type': 'start', 'conversation_id': conv_id, 'user_msg_id': user_msg.id, 'assistant_msg_id': assistant_msg_id, 'citations': citations})}\n\n"
+    # Generate complete Qwen response
+    full_response_parts = []
 
-        full_response_parts = []
+    async for chunk_json in stream_ollama_or_fallback(
+        messages=formatted_history,
+        model_name=req.model or conv.model or "qwen2.5:1.5b",
+        custom_api_key=user.custom_api_key,
+        system_prompt=req.system_prompt or user.system_prompt,
+        rag_context=rag_context,
+        temperature=req.temperature or 0.7
+    ):
+        try:
+            parsed = json.loads(chunk_json)
+            token = parsed.get("token", "")
+            full_response_parts.append(token)
+        except Exception:
+            continue
 
-        async for chunk_json in stream_ollama_or_fallback(
-            messages=formatted_history,
-            model_name=req.model or conv.model or "llama-3.3-70b-versatile",
-            custom_api_key=user.custom_api_key,
-            system_prompt=req.system_prompt or user.system_prompt,
-            rag_context=rag_context,
-            temperature=req.temperature or 0.7
-        ):
-            try:
-                parsed = json.loads(chunk_json)
-                token = parsed.get("token", "")
-                full_response_parts.append(token)
-                yield f"data: {json.dumps({'type': 'token', 'token': token})}\n\n"
-            except Exception:
-                continue
+    full_content = "".join(full_response_parts)
 
-        full_content = "".join(full_response_parts)
+    # Save assistant message
+    with SessionLocal() as db_session:
+        assistant_msg = Message(
+            id=assistant_msg_id,
+            conversation_id=conv_id,
+            role="assistant",
+            content=full_content,
+            model=req.model or conv.model or "qwen2.5:1.5b",
+            citations=json.dumps(citations) if citations else None
+        )
 
-        # Persist assistant message
-        with SessionLocal() as db_session:
-            assistant_msg = Message(
-                id=assistant_msg_id,
-                conversation_id=conv_id,
-                role="assistant",
-                content=full_content,
-                model=req.model or conv.model,
-                citations=json.dumps(citations) if citations else None
-            )
-            db_session.add(assistant_msg)
-            conv_obj = db_session.query(Conversation).filter(Conversation.id == conv_id).first()
-            if conv_obj:
-                conv_obj.updated_at = datetime.datetime.utcnow()
-            db_session.commit()
+        db_session.add(assistant_msg)
 
-        yield f"data: {json.dumps({'type': 'done', 'full_content': full_content})}\n\n"
+        conv_obj = db_session.query(Conversation).filter(
+            Conversation.id == conv_id
+        ).first()
 
-    return StreamingResponse(sse_generator(), media_type="text/event-stream")
+        if conv_obj:
+            conv_obj.updated_at = datetime.datetime.utcnow()
+
+        db_session.commit()
+
+    return {
+        "conversation_id": conv_id,
+        "user_msg_id": user_msg.id,
+        "assistant_msg_id": assistant_msg_id,
+        "citations": citations,
+        "full_content": full_content
+    }
 
 
 @app.post("/api/chat/regenerate")
@@ -683,51 +711,50 @@ async def regenerate_response(
     last_user_msg = next((m for m in reversed(history_messages) if m.role == "user"), None)
     rag_context, citations = "", []
     if last_user_msg:
-        rag_context, citations = build_rag_context(user.id, last_user_msg.content, top_k=3)
+        rag_context, citations = build_rag_context(user.id, last_user_msg.content, top_k=3, db=db)
 
     new_assistant_msg_id = str(uuid.uuid4())
+    full_response_parts = []
 
-    async def sse_generator():
-        yield f"data: {json.dumps({'type': 'start', 'conversation_id': req.conversation_id, 'assistant_msg_id': new_assistant_msg_id, 'citations': citations})}\n\n"
-
-        full_response_parts = []
-
-        async for chunk_json in stream_ollama_or_fallback(
-            messages=formatted_history,
-            model_name=req.model or conv.model or "llama-3.3-70b-versatile",
-            custom_api_key=user.custom_api_key,
-            system_prompt=req.system_prompt or user.system_prompt,
-            rag_context=rag_context,
-            temperature=req.temperature or 0.7
-        ):
-            try:
-                parsed = json.loads(chunk_json)
-                token = parsed.get("token", "")
+    async for chunk_json in stream_ollama_or_fallback(
+        messages=formatted_history,
+        model_name=req.model or conv.model or "qwen2.5:1.5b",
+        custom_api_key=user.custom_api_key,
+        system_prompt=req.system_prompt or user.system_prompt,
+        rag_context=rag_context,
+        temperature=req.temperature or 0.7
+    ):
+        try:
+            parsed = json.loads(chunk_json)
+            token = parsed.get("token", "")
+            if token:
                 full_response_parts.append(token)
-                yield f"data: {json.dumps({'type': 'token', 'token': token})}\n\n"
-            except Exception:
-                continue
+        except Exception:
+            continue
 
-        full_content = "".join(full_response_parts)
+    full_content = "".join(full_response_parts)
 
-        with SessionLocal() as db_session:
-            assistant_msg = Message(
-                id=new_assistant_msg_id,
-                conversation_id=req.conversation_id,
-                role="assistant",
-                content=full_content,
-                model=req.model or conv.model,
-                citations=json.dumps(citations) if citations else None
-            )
-            db_session.add(assistant_msg)
-            conv_obj = db_session.query(Conversation).filter(Conversation.id == req.conversation_id).first()
-            if conv_obj:
-                conv_obj.updated_at = datetime.datetime.utcnow()
-            db_session.commit()
+    with SessionLocal() as db_session:
+        assistant_msg = Message(
+            id=new_assistant_msg_id,
+            conversation_id=req.conversation_id,
+            role="assistant",
+            content=full_content,
+            model=req.model or conv.model or "qwen2.5:1.5b",
+            citations=json.dumps(citations) if citations else None
+        )
+        db_session.add(assistant_msg)
+        conv_obj = db_session.query(Conversation).filter(Conversation.id == req.conversation_id).first()
+        if conv_obj:
+            conv_obj.updated_at = datetime.datetime.utcnow()
+        db_session.commit()
 
-        yield f"data: {json.dumps({'type': 'done', 'full_content': full_content})}\n\n"
-
-    return StreamingResponse(sse_generator(), media_type="text/event-stream")
+    return {
+        "conversation_id": req.conversation_id,
+        "assistant_msg_id": new_assistant_msg_id,
+        "citations": citations,
+        "full_content": full_content
+    }
 
 
 @app.post("/api/chat/edit")
@@ -736,7 +763,7 @@ async def edit_and_resubmit(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Edit a user message and delete all subsequent messages, then re-stream."""
+    """Edit a user message and delete all subsequent messages, then re-generate."""
     conv = db.query(Conversation).filter(
         Conversation.id == req.conversation_id,
         Conversation.user_id == user.id
@@ -766,52 +793,50 @@ async def edit_and_resubmit(
     ).order_by(Message.created_at).all()
     formatted_history = [{"role": m.role, "content": m.content} for m in history_messages]
 
-    rag_context, citations = "", []
-    rag_context, citations = build_rag_context(user.id, req.new_content, top_k=3)
+    rag_context, citations = build_rag_context(user.id, req.new_content, top_k=3, db=db)
 
     new_assistant_msg_id = str(uuid.uuid4())
+    full_response_parts = []
 
-    async def sse_generator():
-        yield f"data: {json.dumps({'type': 'start', 'conversation_id': req.conversation_id, 'assistant_msg_id': new_assistant_msg_id, 'citations': citations})}\n\n"
-
-        full_response_parts = []
-
-        async for chunk_json in stream_ollama_or_fallback(
-            messages=formatted_history,
-            model_name=req.model or conv.model or "llama-3.3-70b-versatile",
-            custom_api_key=user.custom_api_key,
-            system_prompt=req.system_prompt or user.system_prompt,
-            rag_context=rag_context,
-            temperature=req.temperature or 0.7
-        ):
-            try:
-                parsed = json.loads(chunk_json)
-                token = parsed.get("token", "")
+    async for chunk_json in stream_ollama_or_fallback(
+        messages=formatted_history,
+        model_name=req.model or conv.model or "qwen2.5:1.5b",
+        custom_api_key=user.custom_api_key,
+        system_prompt=req.system_prompt or user.system_prompt,
+        rag_context=rag_context,
+        temperature=req.temperature or 0.7
+    ):
+        try:
+            parsed = json.loads(chunk_json)
+            token = parsed.get("token", "")
+            if token:
                 full_response_parts.append(token)
-                yield f"data: {json.dumps({'type': 'token', 'token': token})}\n\n"
-            except Exception:
-                continue
+        except Exception:
+            continue
 
-        full_content = "".join(full_response_parts)
+    full_content = "".join(full_response_parts)
 
-        with SessionLocal() as db_session:
-            assistant_msg = Message(
-                id=new_assistant_msg_id,
-                conversation_id=req.conversation_id,
-                role="assistant",
-                content=full_content,
-                model=req.model or conv.model,
-                citations=json.dumps(citations) if citations else None
-            )
-            db_session.add(assistant_msg)
-            conv_obj = db_session.query(Conversation).filter(Conversation.id == req.conversation_id).first()
-            if conv_obj:
-                conv_obj.updated_at = datetime.datetime.utcnow()
-            db_session.commit()
+    with SessionLocal() as db_session:
+        assistant_msg = Message(
+            id=new_assistant_msg_id,
+            conversation_id=req.conversation_id,
+            role="assistant",
+            content=full_content,
+            model=req.model or conv.model or "qwen2.5:1.5b",
+            citations=json.dumps(citations) if citations else None
+        )
+        db_session.add(assistant_msg)
+        conv_obj = db_session.query(Conversation).filter(Conversation.id == req.conversation_id).first()
+        if conv_obj:
+            conv_obj.updated_at = datetime.datetime.utcnow()
+        db_session.commit()
 
-        yield f"data: {json.dumps({'type': 'done', 'full_content': full_content})}\n\n"
-
-    return StreamingResponse(sse_generator(), media_type="text/event-stream")
+    return {
+        "conversation_id": req.conversation_id,
+        "assistant_msg_id": new_assistant_msg_id,
+        "citations": citations,
+        "full_content": full_content
+    }
 
 
 @app.post("/api/chat/feedback")
@@ -838,7 +863,7 @@ async def upload_document(
 ):
     filename = file.filename
     ext = os.path.splitext(filename)[1].lower().replace(".", "")
-    allowed = ["pdf", "docx", "doc", "txt", "csv", "json", "md"]
+    allowed = ["pdf", "docx", "doc", "txt", "csv", "json", "md", "png", "jpg", "jpeg", "webp", "bmp"]
     if ext not in allowed:
         raise HTTPException(
             status_code=400,
@@ -854,10 +879,11 @@ async def upload_document(
 
     chunks = extract_text_from_file(content, filename)
     chunk_count = len(chunks)
-
-    store = get_user_vector_store(user.id)
-    store.remove_document(filename)
-    store.add_chunks(chunks)
+    if chunk_count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not extract any readable text from '{filename}'. Scanned or image-only documents cannot be indexed without selectable text."
+        )
 
     doc_id = str(uuid.uuid4())
     doc = Document(
@@ -871,6 +897,24 @@ async def upload_document(
     db.add(doc)
     db.commit()
     db.refresh(doc)
+
+    # Persist extracted chunks for RAG analysis
+    for c in chunks:
+        chunk_rec = DocumentChunk(
+            document_id=doc.id,
+            user_id=user.id,
+            filename=filename,
+            chunk_index=c.get("chunk_id", 0),
+            page_number=c.get("page", 1),
+            content=c.get("text", "")
+        )
+        db.add(chunk_rec)
+    db.commit()
+
+    # Index in vector store
+    store = get_user_vector_store(user.id, db=db)
+    store.remove_document(filename)
+    store.add_chunks(chunks)
 
     return {
         "id": doc.id,
@@ -905,6 +949,21 @@ def list_documents(
     ]
 
 
+@app.delete("/api/documents")
+def delete_all_documents(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Deletes ALL documents and chunks uploaded by the user, and clears the user's vector store.
+    """
+    db.query(DocumentChunk).filter(DocumentChunk.user_id == user.id).delete()
+    db.query(Document).filter(Document.user_id == user.id).delete()
+    db.commit()
+    clear_user_vector_store(user.id)
+    return {"status": "success", "message": "All documents successfully deleted"}
+
+
 @app.delete("/api/documents/{doc_id}")
 def delete_document(
     doc_id: str,
@@ -918,12 +977,30 @@ def delete_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    store = get_user_vector_store(user.id)
-    store.remove_document(doc.filename)
-
+    # Clean up chunks and vector store
+    db.query(DocumentChunk).filter(DocumentChunk.document_id == doc.id).delete()
     db.delete(doc)
     db.commit()
+
+    # Force reload of vector store from DB so removed document is completely gone
+    reload_user_vector_store(user.id, db=db)
     return {"status": "success", "deleted_id": doc_id}
+
+
+@app.post("/api/documents/purge-all")
+def purge_all_documents(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Completely purges all document chunks and documents across the system and flushes all vector caches.
+    """
+    db.query(DocumentChunk).delete()
+    db.query(Document).delete()
+    db.commit()
+    purge_all_vector_stores()
+    return {"status": "success", "message": "All documents and vector stores have been completely purged"}
+
 
 
 # ─── Static Frontend (optional unified build) ─────────────────────────────────

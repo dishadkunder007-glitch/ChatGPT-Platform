@@ -6,6 +6,7 @@ import { InputBox } from './components/InputBox';
 import { DocumentModal } from './components/DocumentModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthModal } from './components/AuthModal';
+import { PrivacyModal } from './components/PrivacyModal';
 import { User, Conversation, Message, ModelOption, DocumentItem } from './types';
 import {
   getCurrentUser,
@@ -17,6 +18,9 @@ import {
   getMessages,
   getModels,
   getDocuments,
+  uploadDocument,
+  deleteDocument,
+  deleteAllDocuments,
   streamChat,
   sendFeedback,
   removeAuthToken,
@@ -36,11 +40,13 @@ export const App: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [temperature, setTemperature] = useState(0.7);
   const [systemPrompt, setSystemPrompt] = useState('You are ChatGPT. Always answer questions in simple, plain words using well-structured, easy-to-read paragraphs without complex symbols.');
+  const [isIncognito, setIsIncognito] = useState(false);
 
   // Modals
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -334,6 +340,36 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleDeleteDocument = async (docId: string) => {
+    try {
+      await deleteDocument(docId);
+      await refreshDocuments();
+    } catch (err) {
+      console.error('Failed to delete document:', err);
+    }
+  };
+
+  const handleUploadDocument = async (file: File) => {
+    try {
+      await uploadDocument(file);
+      await refreshDocuments();
+    } catch (err) {
+      console.error('Failed to upload document:', err);
+    }
+  };
+
+  const handleClearAllDocuments = async () => {
+    if (!window.confirm('Are you sure you want to delete ALL uploaded documents? This will completely clear the RAG knowledge base.')) {
+      return;
+    }
+    try {
+      await deleteAllDocuments();
+      await refreshDocuments();
+    } catch (err) {
+      console.error('Failed to clear all documents:', err);
+    }
+  };
+
   const filteredConversations = conversations.filter((c) =>
     c.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -364,8 +400,10 @@ export const App: React.FC = () => {
           user={user}
           onNewChat={handleNewChat}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenPrivacy={() => setIsPrivacyOpen(true)}
           onOpenAuth={() => setIsAuthOpen(true)}
           onLogout={handleLogout}
+          isIncognito={isIncognito}
         />
 
         {/* Chat Messages */}
@@ -389,10 +427,28 @@ export const App: React.FC = () => {
           onOpenDocumentManager={() => setIsDocModalOpen(true)}
           attachedDocsCount={documents.length}
           useRag={useRag}
+          documents={documents}
+          onDeleteDocument={handleDeleteDocument}
+          onUploadFile={handleUploadDocument}
+          onClearAllDocuments={handleClearAllDocuments}
         />
       </div>
 
       {/* Modals */}
+      <PrivacyModal
+        isOpen={isPrivacyOpen}
+        onClose={() => setIsPrivacyOpen(false)}
+        conversations={conversations}
+        onConversationsPurged={() => {
+          setConversations([]);
+          setMessages([]);
+          setActiveConvId(null);
+        }}
+        onDocumentsPurged={refreshDocuments}
+        isIncognito={isIncognito}
+        onToggleIncognito={(val) => setIsIncognito(val)}
+      />
+
       <DocumentModal
         isOpen={isDocModalOpen}
         onClose={() => setIsDocModalOpen(false)}

@@ -408,6 +408,64 @@ def generate_topic_synthesis(query: str, subject: str) -> str:
 
 # ─── 6. Master Generator ───────────────────────────────────────────────────────
 
+def synthesize_document_qa(query: str, rag_context: str) -> str:
+    """Synthesizes document excerpts into an intelligent, structured response."""
+    sources = [s.strip() for s in rag_context.strip().split("\n\n") if s.strip()]
+    
+    # Extract key lines and source info
+    parsed_sources = []
+    all_sentences = []
+    
+    for s in sources:
+        lines = s.split("\n", 1)
+        header = lines[0].strip("[]")
+        body = lines[1] if len(lines) > 1 else lines[0]
+        parsed_sources.append((header, body))
+        
+        # Split body into sentences
+        for sentence in re.split(r'(?<=[.!?])\s+', body):
+            sent_clean = sentence.strip()
+            if len(sent_clean) > 20:
+                all_sentences.append(sent_clean)
+
+    # Find sentences most relevant to user's question
+    q_words = set(re.findall(r'\w+', query.lower())) - {"what", "is", "the", "in", "tell", "me", "about", "how", "to", "explain", "summarize", "document", "file", "pdf"}
+    
+    key_findings = []
+    for sent in all_sentences:
+        sent_words = set(re.findall(r'\w+', sent.lower()))
+        overlap = len(q_words & sent_words)
+        if overlap > 0 or len(key_findings) < 3:
+            if sent not in key_findings:
+                key_findings.append(sent)
+        if len(key_findings) >= 5:
+            break
+
+    if not key_findings and all_sentences:
+        key_findings = all_sentences[:4]
+
+    findings_md = "\n".join(f"• {f}" for f in key_findings[:4]) if key_findings else "• Relevant information was identified in the uploaded document."
+
+    source_quotes = []
+    for header, body in parsed_sources[:3]:
+        snippet = body.strip()
+        if len(snippet) > 280:
+            snippet = snippet[:280] + "..."
+        source_quotes.append(f"**{header}**:\n> *\"{snippet}\"*")
+
+    sources_md = "\n\n".join(source_quotes)
+
+    return (
+        f"### 📄 Document Analysis & Answer\n\n"
+        f"Based on your uploaded documents for **\"{query}\"**:\n\n"
+        f"#### Key Insights & Information\n"
+        f"{findings_md}\n\n"
+        f"#### Verified Source Grounding\n"
+        f"{sources_md}\n\n"
+        f"💡 *You can ask more specific questions or request a deeper breakdown of any section in this document.*"
+    )
+
+
 def generate_deep_topic_response(
     query: str,
     history: List[Dict[str, str]],
@@ -417,20 +475,17 @@ def generate_deep_topic_response(
     Main entry point for local AI response generation.
     Returns tailored, accurate, non-generic responses for any question with 0 external API calls.
     """
-    # 1. RAG Document Grounding
-    if rag_context and len(rag_context.strip()) > 10:
-        clean_context = re.sub(r'[\r\n]+', ' ', rag_context)[:600]
-        return (
-            f"### Document Analysis for: \"{query}\"\n\n"
-            f"Based on your indexed documents, here are the extracted findings:\n\n"
-            f"• **Evidence**: {clean_context}\n\n"
-            f"**Conclusion**: The uploaded files provide specific grounding for **\"{query}\"**."
-        )
+    # 1. Pure conversational greetings & identity (prioritize greetings unless query asks about documents)
+    q_tokens = set(re.findall(r'\w+', query.lower()))
+    doc_words = {"document", "documents", "file", "files", "pdf", "pdfs", "doc", "docx", "summary", "summarize", "read", "notes", "attachment", "content"}
+    if not (q_tokens & doc_words):
+        conv = handle_conversational(query)
+        if conv:
+            return conv
 
-    # 2. Conversational greetings & identity
-    conv = handle_conversational(query)
-    if conv:
-        return conv
+    # 2. RAG Document Grounding
+    if rag_context and len(rag_context.strip()) > 10:
+        return synthesize_document_qa(query, rag_context)
 
     # 3. Multi-turn follow-ups
     followup = handle_followup(query, history)

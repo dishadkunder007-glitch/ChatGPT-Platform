@@ -81,7 +81,27 @@ export function InputBox({ onSend, onStop }: InputBoxProps) {
   }
 
   return (
-    <div className="border-t border-[#2d2d2d] bg-[#0f0f0f] px-4 py-4">
+    <div className="border-t border-[#2d2d2d] bg-[#0f0f0f] px-4 py-3">
+      {/* Active Knowledge / Documents Pill */}
+      {documents.length > 0 && (
+        <div className="flex items-center justify-between mb-2.5 px-2 py-1.5 bg-zinc-900/80 border border-zinc-800 rounded-xl text-xs text-zinc-400">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0 animate-pulse" />
+            <span className="font-medium text-zinc-200 flex-shrink-0">
+              Active Documents ({documents.length}):
+            </span>
+            <span className="text-zinc-400 truncate max-w-[280px] sm:max-w-[450px]">
+              {documents.map((d) => d.filename).join(', ')}
+            </span>
+          </div>
+          <button
+            onClick={() => useStore.getState().setDocModalOpen(true)}
+            className="text-emerald-400 hover:text-emerald-300 text-xs font-medium hover:underline flex-shrink-0 ml-3"
+          >
+            Manage / Delete
+          </button>
+        </div>
+      )}
       {/* File previews */}
       {files.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">

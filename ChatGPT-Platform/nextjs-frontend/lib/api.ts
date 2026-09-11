@@ -7,12 +7,7 @@ export function getApiUrl(endpoint: string): string {
 
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 
-  const baseUrl =
-    typeof window !== 'undefined'
-      ? 'https://markers-phpbb-codes-protest.trycloudflare.com'
-      : (process.env.NEXT_PUBLIC_API_URL ||
-        'http://127.0.0.1:8001');
-
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
   return `${baseUrl.replace(/\/$/, '')}/api${cleanEndpoint}`;
 }
 let inMemoryToken: string | null = null;
@@ -240,6 +235,12 @@ export async function deleteDocument(id: string): Promise<any> {
   });
 }
 
+export async function deleteAllDocuments(): Promise<any> {
+  return request('/documents', {
+    method: 'DELETE',
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Streaming Chat API (SSE)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -290,6 +291,22 @@ export async function streamChat(
         // keep fallback
       }
       params.onError?.(new Error(errDetail));
+      return;
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      params.onStart?.({
+        conversation_id: data.conversation_id || params.conversationId,
+        assistant_msg_id: data.assistant_msg_id || `asst-${Date.now()}`,
+        citations: data.citations || [],
+      });
+      const content = data.full_content ?? data.response ?? '';
+      if (content) {
+        params.onToken?.(content);
+      }
+      params.onDone?.(content);
       return;
     }
 
